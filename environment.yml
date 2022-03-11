@@ -1,0 +1,76 @@
+name: "cso-data"
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  # Python
+  - python=3.10
+  
+  # Formatting, refactoring, linting
+  - black               # Auto code formatter       https://github.com/psf/black
+  - pylint              # Static code analysis      https://www.pylint.org/
+  - rope                # Code refactoring          https://github.com/python-rope/rope
+  - rich
+
+  # Config
+  - python-box          # Safe dot notation for dicts     
+  # - python-dotenv       # Environment variables from .env file
+  - gitpython
+
+  # Testing and automation
+  - great-expectations  # Pipeline tests for data   https://github.com/great-expectations/great_expectations
+  - hypothesis          # Property-based testing    https://hypothesis.readthedocs.io/en/latest/
+  # - prefect # 
+  - pydantic
+  # - pysnooper
+  - pytest
+
+  # Jupyter 
+  # - inkscape
+  - ipykernel
+  # - ipywidgets
+  - jupyter
+  - jupyterlab
+  # - jupytext
+  - nodejs
+  # - papermill
+
+  # Visualisation
+  # - altair
+  - matplotlib
+  # - pdvega  # pandas plotting API rendered in vegalite! https://github.com/altair-viz/pdvega
+  - seaborn
+
+  # Data science
+  # - dask
+  - numpy
+  - pandas
+  # - pandas-profiling  # df.describe() has nothing on this!
+  - scikit-learn
+  - scipy
+
+  # Database
+  - openpyxl
+  - pyodbc
+  - sqlalchemy
+  - alembic
+
+  # I/O
+  - beautifulsoup4
+  - lxml
+  - tabula-py
+  - xlrd
+  
+  # Command line 
+  - click
+  - tqdm
+
+  # Pip
+  - pip
+  - pip:
+    - --editable .
+
+
+
