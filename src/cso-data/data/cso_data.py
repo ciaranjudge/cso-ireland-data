@@ -2,33 +2,45 @@
 import requests
 import pandas as pd
 
+# TODO Docstrings!!
+# TODO Tests!!!
 
-pd.options.display.max_columns = 100
-pd.options.display.max_rows = 100
 
-
-def get_toc(frequency: bool = True, variables: bool = False) -> pd.DataFrame:
-    url = "https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadCollection"
-    try:
-        json_data = requests.get(url).json()
-    except requests.exceptions.SSLError:  # needed if behind firewall
-        json_data = requests.get(url, verify=False).json()
-
+def process_toc(
+    json_data: dict, show_frequency: bool = True, show_variables: bool = True
+) -> pd.DataFrame:
+    """
+    D
+    O
+    C
+    S
+    T
+    R
+    I
+    N
+    G
+    !
+    """
     df = pd.json_normalize(json_data["link"]["item"], max_level=0)
 
-    toc_df = (
-        df["href"]
-        .str.lstrip(
-            "https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/"
-        )
-        .str.rstrip("/JSON-stat/2.0/en")
-        .rename("table_id")
-        .to_frame()
-        .assign(table_name=df["label"], last_updated=pd.to_datetime(df["updated"]))
+    toc_df = pd.DataFrame(index=df.index).assign(
+        table_id=(
+            df["href"]
+            .str.removeprefix(
+                "https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/"
+            )
+            .str.removesuffix("/JSON-stat/2.0/en")
+        ),
+        table_name=df["label"],
+        last_updated=pd.to_datetime(df["updated"]),
+        url=df["href"],
+        copyright=df["extension"].str.get("copyright"),
     )
 
-    if frequency:
+    if show_frequency or show_variables:
         dimension_df = pd.json_normalize(df["dimension"], max_level=0)
+
+    if show_frequency:
         tlist = pd.json_normalize(
             dimension_df[[c for c in dimension_df.columns if "TLIST" in c]].stack(),
             max_level=1,
@@ -51,8 +63,7 @@ def get_toc(frequency: bool = True, variables: bool = False) -> pd.DataFrame:
             latest=t_labels["latest"],
         )
 
-    if variables:
-        dimension_df = pd.json_normalize(df["dimension"], max_level=0)
+    if show_variables:
         variables = (
             dimension_df[
                 [
@@ -72,83 +83,123 @@ def get_toc(frequency: bool = True, variables: bool = False) -> pd.DataFrame:
         )
         toc_df = toc_df.assign(variables=variables)
 
-    return toc_df
+    return toc_df.set_index("table_id")
 
 
-# %%
-def get_data(
-    table: str,
-    dimensions: list = None,
-    excluded_dimensions: list = ["id", "size", "role"],
-):
-    """Given a CSO PxStat table name, return dataframe with all table data.
-    With optional `dimensions` list, return dimensions. Otherwise, return all non-excluded dimensions.
-    Some dimensions seem to be for internal use by PxStat and should be excluded.
+def get_toc(
+    show_frequency: bool = True, show_variables: bool = True, **requests_kwargs
+) -> pd.DataFrame:
     """
-    url = f"https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/{table}/JSON-stat/2.0/en"
-    try:
-        json_data = requests.get(url).json()
-    except requests.exceptions.SSLError:  # needed if behind firewall
-        json_data = requests.get(url, verify=False).json()
-    dimension_dict = {
-        key: value["category"]["label"].values()
-        for key, value in json_data["dimension"].items()
-        if key not in excluded_dimensions
+    Doooooooooooooooooocccccccccccccstrrrriiiiiiiiiiiiiiiiinnnnnnnnnnnnngggggggg!
+    """
+    url = "https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadCollection"
+    json_data = requests.get(url, **requests_kwargs).json()
+    return process_toc(json_data, show_frequency, show_variables)
+
+
+def process_table(json_data, metadata: bool = False):
+    """
+    Please write a docstring please please please
+    Please
+    Please
+    Please
+    Pleaaaaaaase!
+    """
+    # Create dictionary with list of category labels for each dimension label
+    dimensions = {
+        dimension["label"]: dimension["category"]["label"].values()
+        for dimension in json_data["dimension"].values()
     }
     # Use cartesian product of dimension values to make a MultiIndex
-    df_index = pd.MultiIndex.from_product(dimension_dict.values())
-    df_index.names = dimension_dict.keys()
+    dimension_index = pd.MultiIndex.from_product(
+        dimensions.values(), names=dimensions.keys()
+    )
 
-    # Add the dimensions to the actual data points and make into normal columns
-    df = pd.DataFrame(json_data["value"], columns=["Value"], index=df_index)
-    if dimensions is not None:
-        df = df[dimensions + ["Value"]]
-    return df
+    id_labels = json_data["dimension"]["STATISTIC"]["category"]["label"]
+
+    # Add the dimensions to the actual data points and unstack Statistic
+    table = (
+        pd.DataFrame(json_data["value"], columns=["Value"], index=dimension_index)
+        .unstack("Statistic")
+        .droplevel(0, axis="columns")
+        .loc[:, [id_labels[id] for id in sorted(id_labels)]]
+    )
+
+    if metadata:
+        id_units = json_data["dimension"]["STATISTIC"]["category"]["unit"]
+        statistic_units = [
+            (id_labels[id], id_units[id]["label"]) for id in sorted(id_labels)
+        ]
+        table.columns = pd.MultiIndex.from_tuples(
+            statistic_units, names=["statistic", "unit"]
+        )
+
+    return table
+
+
+def get_table(table: str, metadata: bool = False, **requests_kwargs) -> pd.DataFrame:
+    """
+    Given a CSO PxStat table name, get table data from PxStat API and return dataframe with all table data.
+    Any keyword arguments given to this function are passed straight through to requests.get().
+    For example, to disable ssl verification behind a corporate firewall, `verify=False`"""
+    url = f"https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/{table}/JSON-stat/2.0/en"
+    json_data = requests.get(url, **requests_kwargs).json()
+    return process_table(json_data, metadata)
 
 
 # %%
-def life_table(
-    statistics: list | str = "px",
-    vintage: int = 2016,
-) -> pd.Series:
+def life_table(vintage: int | str = "most_recent", **requests_kwargs) -> pd.Series:
+    """
+    Please just give me a docstring.
+    Any docstring!!
+    Seriously, just write something here.
+    """
 
-    life_table = get_data("VSA32")
-    life_table.columns = ["statistic", "vintage", "sex", "age", "value"]
+    life_table = get_table("VSA32", **requests_kwargs).reset_index()
+    life_table["Age x"] = (
+        life_table["Age x"].str.extract("(\d+)").astype("Int64").fillna(0)
+    )
+    life_table = life_table.set_index(["Year", "Sex", "Age x"]).sort_index()
 
-    statistic_list = [statistics.lower()] if isinstance(statistics, str) else statistics
-    life_table = life_table.loc[
-        (life_table["statistic"].isin(statistic_list))
-        & (life_table["vintage"] == f"{vintage}"),
-        ["statistic", "sex", "age", "value"],
-    ]
-    life_table["age"] = life_table["age"].str.extract("(\d+)").astype("Int64").fillna(0)
+    if vintage != "all":
+        if vintage == "most_recent":
+            life_table = life_table.loc[life_table.index.get_level_values("Year").max()]
+        else:
+            life_table = life_table.loc[str(vintage)]
+
     return life_table
 
 
 # %%
-def cpi(
-    start_month: str = "1984M04",
-    statistic: str = "Consumer Price Index (Base Dec 2001=100)",
-    items: str | list = "All items",
-    # normalize_to_most_recent=True,
-) -> pd.Series:
+# def monthly_cpi(
+#     start_month: str | None = None,
+#     statistic: str = "Consumer Price Index (Base Dec 2001=100)",
+#     commodity_groups: str | list = "All items",
+#     # normalize_to_most_recent=True,
+# ) -> pd.Series:
+#     """
+#     D O
+#     D O C
+#     D O C String
+#     DOCSTRING!!!
+#     """
 
-    item_list = [items] if isinstance(items, str) else items
+#     item_list = [commodity_groups] if isinstance(commodity_groups, str) else commodity_groups
 
-    print(item_list)
-    cpi = get_data("CPM01")
-    cpi.columns = ["statistic", "month", "item", "value"]
-    # print(cpi.loc[cpi["item"].isin(["All items"]), "item"].value_counts())
-    cpi = cpi.loc[
-        (cpi["statistic"] == statistic)
-        & (cpi["item"].isin(item_list))
-        & (cpi["month"] >= start_month),
-        # ["month", "item", "value"],
-    ]
-    cpi["month"] = pd.to_datetime(cpi["month"], format="%YM%m")
-    # cpi = cpi.set_index("month").squeeze().rename("cpi")
+#     cpi = get_table("CPM01")
 
-    return cpi
+#     cpi["month"] = pd.to_datetime(cpi["month"], format="%YM%m")
+#     # print(cpi.loc[cpi["item"].isin(["All items"]), "item"].value_counts())
+#     cpi = cpi.loc[
+#         (cpi["statistic"] == statistic)
+#         & (cpi["item"].isin(item_list))
+#         & (cpi["month"] >= start_month if start_month is not None else ),
+#         # ["month", "item", "value"],
+#     ]
+
+#     # cpi = cpi.set_index("month").squeeze().rename("cpi")
+
+#     return cpi
 
 
 # cso_pxstat_data("LRM02")
