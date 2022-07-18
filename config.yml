@@ -1,4 +1,4 @@
-project_name: cso-data
+project_name: cso_data
 
 # *Data files should live in the ./data folder if not too big, else in SQL.
 # This enables versioning of input data (e.g. life tables)

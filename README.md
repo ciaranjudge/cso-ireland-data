@@ -1,4 +1,4 @@
-cso-data
+cso_data
 ==============================
 
 Download data from the CSO PxStat API

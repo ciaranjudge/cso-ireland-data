@@ -1,4 +1,4 @@
-name: "cso-data"
+name: "cso_data"
 
 channels:
   - conda-forge
@@ -60,7 +60,7 @@ dependencies:
   # I/O
   - beautifulsoup4
   - lxml
-  - tabula-py
+  # - tabula-py
   - xlrd
   
   # Command line 
