@@ -1,5 +1,5 @@
 # %%
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, InitVar
 from datetime import datetime
 from dateutil.relativedelta import TH, FR
 from requests_cache import CachedSession
@@ -9,12 +9,6 @@ import pandas as pd
 from pandas.tseries.holiday import DateOffset
 
 # TODO Tests!!!
-
-# TODO Better solution for SSL_VERIFY issue e.g. making a CSO class that tracks this setting
-# requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-SSL_VERIFY = False
-
-
 
 # %%
 def jsonstat_toc_to_df(
@@ -188,7 +182,6 @@ def jsonstat_table_to_df(json_data, metadata: bool = False):
     return table
 
 
-
 def live_register_dates(start=datetime(1967, 1, 1), end=datetime.now()):
     """
     Returns months LR reference dates, and corresponding 'ISTS' (administrative data) extract dates,
@@ -219,16 +212,55 @@ def live_register_dates(start=datetime(1967, 1, 1), end=datetime.now()):
     )
     return lr_dates
 
+
 # %%
 @dataclass
 class CSODataSession:
-    connection_params: dict = field(default_factory=dict)
+    cached_session_params: InitVar[dict] = None
+    request_params: dict = field(default_factory=dict)
     session: CachedSession = field(init=False)
     """
+    Creates a session that connects to CSO PxStat and enables downloading PxStat tables.
+
+    Parameters
+    ----------   
+    cached_session_params: dict
+        An optional dict of cached session parameters such as data backend and cache lifetime.
+        Key-value pairs here are passed through to the CachedSession that manages the CSO PxStat session.
+        A full list of possible cached session parameters is given here:
+        https://requests-cache.readthedocs.io/en/stable/session.html
+
+    request_params: dict
+        An optional dict of request parameters. 
+        Any key-value pairs here are passed through to the underlying session.get() call.
+        A full list of possible request parameters is given here:
+        https://requests.readthedocs.io/en/latest/api/
+
+    
+    Attributes
+    ----------
+    session: CachedSession
+        A CachedSession object that manages the session and caching behaviour of the CSODataSession.
+        Normally initialised by passing cached_session_params when constructing the CSODataSession,
+        but can also be accessed directly, e.g. to clear cached data (`cso.session.cache.clear()`).
+        A full list of possible cached session parameters, attributes, and methods is given here:   
+        https://requests-cache.readthedocs.io/en/stable/session.html
+    
+    Examples
+    --------
+    >>> from cso_data import CSODataSession
+    >>> # Normal setup, no need to specify request_params
+    >>> cso = CSODataSession()
+    >>> # Alternative setup behind corporate firewall
+    >>> cso = CSODataSession(request_params={"verify": False})
     """
 
-    def __post_init__(self):
-        self.session = CachedSession()
+    def __post_init__(self, cached_session_params):
+        self.session = (
+            CachedSession(**cached_session_params)
+            if cached_session_params
+            else CachedSession()
+        )
 
     def get_toc(
         self,
@@ -238,6 +270,8 @@ class CSODataSession:
     ) -> pd.DataFrame:
         """
         Get the table of contents (TOC) of all available PxStat tables as a dataframe.
+        NB The CSO PxStat website sometimes fails to return the requested data.
+        If this happens, retry this request.
         The live PxStat ToC is available at https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/.
 
         Parameters
@@ -278,18 +312,15 @@ class CSODataSession:
                     Only included if `show_frequency` is True.
                 "variables" : object [list[str]]
                     A list of the variables (dimensions) for each table.
-                    Only included if `show_frequency` is True.
+                    Only included if `show_variables` is True.
                 "url" : object [url]
                     Direct JSONStat link to this table.
-                    Only included if `show_frequency` is True.
+                    Only included if `show_url` is True.
 
         Examples
         --------
-        >>> import cso_data as cso
-        >>> # Get the `json_data` from CSO's PxStat portal.
-        >>> # NB It's much easier to use the `get_toc` function which encapsulates the next several lines!
-        >>> url = "https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadCollection"
-        >>> json_data = requests.get(url).json()
+        >>> from cso_data import CSODataSession
+        >>> cso = CSODataSession()
         >>> toc = cso.jsonstat_toc_to_df(json_data)
         >>> toc.info()
         >>> # It's easy to look up any table if you know its ID:
@@ -315,7 +346,7 @@ class CSODataSession:
 
         """
         url = "https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadCollection"
-        json_data = self.session.get(url, **self.connection_params).json()
+        json_data = self.session.get(url, **self.request_params).json()
         return jsonstat_toc_to_df(json_data, show_frequency, show_variables)
 
     def get_table(self, table: str, metadata: bool = False) -> pd.DataFrame:
@@ -324,18 +355,37 @@ class CSODataSession:
 
         Parameters
         ----------
+        table: str
+            The identity code of the requested table.
+
         metadata: bool = False
             If metadata is set to True, include available table metadata in the output dataframe.
         """
         url = f"https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/{table}/JSON-stat/2.0/en"
-        json_data = self.session.get(url, **self.connection_params).json()
+        json_data = self.session.get(url, **self.request_params).json()
         return jsonstat_table_to_df(json_data, metadata)
 
-    def life_table(self, vintage: int | str = "most_recent") -> pd.DataFrame | pd.Series:
+    def life_table(
+        self, vintage: int | str = "most_recent"
+    ) -> pd.DataFrame:
         """
-        Please just give me a docstring.
-        Any docstring!!
-        Seriously, just write something here.
+        Return a life table with data from CSO's PxStat databank (table VSA32).
+
+        Parameters
+        ----------
+        vintage: str
+            Choose a life table vintage.
+            Possible values are:
+                "most_recent" (default): returns the most recent data vintage year
+                "all": returns all vintage years
+                or any valid vintage year.
+
+        Returns
+        -------
+        pandas.DataFrame
+            If `vintage` is a single year, index is ["Sex", "Age x"].
+            If `vintage` is "all", index is ["Year", "Sex", Age x"].
+            Columns are 
         """
 
         life_table = self.get_table("VSA32").reset_index()
@@ -346,7 +396,9 @@ class CSODataSession:
 
         if vintage != "all":
             if vintage == "most_recent":
-                life_table = life_table.loc[life_table.index.get_level_values("Year").max()]
+                life_table = life_table.loc[
+                    life_table.index.get_level_values("Year").max()
+                ]
             else:
                 life_table = life_table.loc[str(vintage)]
 
@@ -360,20 +412,23 @@ class CSODataSession:
         normalize_to_most_recent=True,
     ) -> pd.DataFrame | pd.Series:
         """
-        D O
-        D O C
-        D O C String
-        DOCSTRING!!!
+        Produce a time series of monthly CPI from CSO PxStat databank (table CPM01).
+
+
         """
 
         commodity_group_list = (
-            [commodity_groups] if isinstance(commodity_groups, str) else commodity_groups
+            [commodity_groups]
+            if isinstance(commodity_groups, str)
+            else commodity_groups
         )
 
         cpi = self.get_table("CPM01")
         cpi = (
             cpi.loc[
-                cpi.index.get_level_values("Commodity Group").isin(commodity_group_list),
+                cpi.index.get_level_values("Commodity Group").isin(
+                    commodity_group_list
+                ),
                 statistic,
             ]
             .unstack(level="Commodity Group")
@@ -390,7 +445,6 @@ class CSODataSession:
 
         return cpi
 
-
     # cpi = monthly_cpi(
     #     commodity_groups=[
     #         "Alcoholic beverages and tobacco",
@@ -403,9 +457,8 @@ class CSODataSession:
 
     # cso_pxstat_data("LRM02")
 
-
     def live_register(
-        self, 
+        self,
         start: datetime = datetime(1967, 1, 1),
         end: datetime = datetime.now(),
         age_groups: list = ["All ages"],

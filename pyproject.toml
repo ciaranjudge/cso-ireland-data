@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "cso_ireland_data"
+description = "Download CSO Ireland datasets and data catalogue as Pandas dataframes."
+readme = "README.md"
+requires-python = ">=3.7"
+# keywords = ["one", "two"]
+license = {text = "BSD 3-Clause License"}
+# classifiers = [
+#     "Framework :: Django",
+#     "Programming Language :: Python :: 3",
+# ]
+dependencies = [
+    "requests_cache",
+    "numpy",
+    "pandas"
+]
+dynamic = ["version"]
+
+[tool.setuptools.packages.find]
+where = ["src"] 
