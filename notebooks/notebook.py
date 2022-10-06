@@ -1,7 +1,9 @@
 # %%
 from datetime import datetime
 
-import cso_data as cso
+from cso_ireland_data import CSODataSession
+
+cso = CSODataSession(request_params={"verify": False})
 
 # monthly_cpi(verify=False)
 lt = cso.life_table()
