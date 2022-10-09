@@ -366,13 +366,19 @@ class CSODataSession:
         return jsonstat_table_to_df(json_data, metadata)
 
     def life_table(
-        self, vintage: int | str = "most_recent"
-    ) -> pd.DataFrame:
+        self,
+        statistics: str | list = ["Ix", "dx", "px", "qx", "Lx", "Tx", "e0x"],
+        vintage: int | str = "most_recent",
+    ) -> pd.DataFrame | pd.Series:
         """
         Return a life table with data from CSO's PxStat databank (table VSA32).
 
         Parameters
         ----------
+        statistics: str | list
+            The statistics to be returned from the life table.
+            Default is ["Ix", "dx", "px", "qx", "Lx", "Tx", "e0x"].
+
         vintage: str
             Choose a life table vintage.
             Possible values are:
@@ -382,11 +388,14 @@ class CSODataSession:
 
         Returns
         -------
-        pandas.DataFrame
+        pandas.DataFrame | pandas.Series
+            If `statistics` has more than one element, returns a DataFrame with statistics as columns.
+            Otherwise, returns a Series.
             If `vintage` is a single year, index is ["Sex", "Age x"].
             If `vintage` is "all", index is ["Year", "Sex", Age x"].
-            Columns are 
         """
+
+        statistic_list = [statistics] if isinstance(statistics, str) else statistics
 
         life_table = self.get_table("VSA32").reset_index()
         life_table["Age x"] = (
@@ -402,7 +411,7 @@ class CSODataSession:
             else:
                 life_table = life_table.loc[str(vintage)]
 
-        return life_table
+        return life_table[statistics]
 
     def monthly_cpi(
         self,
@@ -465,10 +474,7 @@ class CSODataSession:
         sexes: list = ["Both sexes"],
     ) -> pd.DataFrame | pd.Series:
         """
-        D O
-        D O C
-        D O C String
-        DOCSTRING!!!
+        Produce Live Register data broken down by age group and sex.
         """
         lr = self.get_table("LRM02")
         lr_dates = live_register_dates()
