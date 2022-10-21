@@ -213,10 +213,14 @@ def live_register_dates(start=datetime(1967, 1, 1), end=datetime.now()):
     return lr_dates
 
 
+def live_register_months_to_datetime(months: pd.Series):
+    return pd.to_datetime(months, infer_datetime_format=True) + pd.offsets.MonthEnd()
+
+
 # %%
 @dataclass
 class CSODataSession:
-    cached_session_params: InitVar[dict] = None
+    cached_session_params: InitVar[dict | None] = None
     request_params: dict = field(default_factory=dict)
     session: CachedSession = field(init=False)
     """
@@ -419,11 +423,11 @@ class CSODataSession:
         statistic: str = "Consumer Price Index (Base Dec 2001=100)",
         commodity_groups: str | list = "All items",
         normalize_to_most_recent=True,
-    ) -> pd.DataFrame | pd.Series:
+    ) -> pd.DataFrame:
         """
-        Produce a time series of monthly CPI from CSO PxStat databank (table CPM01).
+        Produces a time series of monthly CPI from CSO PxStat databank (table CPM01).
 
-
+        You can choose as many commodity groups as you want, but you have to pick just one statistic.
         """
 
         commodity_group_list = (
@@ -442,17 +446,15 @@ class CSODataSession:
             ]
             .unstack(level="Commodity Group")
             .reset_index()
-            .assign(Month=lambda x: pd.to_datetime(x["Month"], format="%Y %B"))
+            .assign(Month=lambda x: pd.to_datetime(x["Month"], infer_datetime_format=True))
             .set_index("Month")
+            .sort_index()          
         )
         if normalize_to_most_recent:
             most_recent = cpi.loc[cpi.index.max()]
             cpi = cpi / most_recent
 
-        if len(commodity_group_list) == 1:
-            cpi = cpi.squeeze().rename("cpi")
-
-        return cpi
+        return cpi[commodity_group_list]
 
     # cpi = monthly_cpi(
     #     commodity_groups=[
@@ -486,7 +488,7 @@ class CSODataSession:
             .reset_index()
             .assign(
                 Month=(
-                    lambda x: pd.to_datetime(x["Month"], format="%YM%m")
+                    lambda x: pd.to_datetime(x["Month"], infer_datetime_format=True)
                     + pd.offsets.MonthEnd()
                 )
             )
