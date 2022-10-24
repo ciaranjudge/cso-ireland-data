@@ -83,7 +83,7 @@ wpm29.head()
 The `CSODataSession` class includes some useful methods to get data from commonly accessed tables quickly. 
 
 #### Monthly Consumer Price Index (CPI)
-By default, the `cpi()` method returns a single column corresponding to the 'All items' headline CPI in the source table. 
+By default, the `monthly_cpi()` method returns a single column corresponding to the 'All items' headline CPI in the source table. 
 
 Also by default, this index is re-normalized to the most recent month - you can toggle this by setting `normalize_to_most_recent` to `False`.
 
