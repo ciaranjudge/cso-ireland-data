@@ -155,6 +155,7 @@ def jsonstat_table_to_df(json_data, metadata: bool = False):
         dimension["label"]: dimension["category"]["label"].values()
         for dimension in json_data["dimension"].values()
     }
+    dimensions = {key.title() if key.lower() == "statistic" else key: value for key, value in dimensions.items()}
     # Use cartesian product of dimension values to make a MultiIndex
     dimension_index = pd.MultiIndex.from_product(
         dimensions.values(), names=dimensions.keys()
@@ -352,6 +353,21 @@ class CSODataSession:
         url = "https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadCollection"
         json_data = self.session.get(url, **self.request_params).json()
         return jsonstat_toc_to_df(json_data, show_frequency, show_variables)
+    
+    def get_json(self, table: str, metadata: bool = False) -> dict:
+        """
+        Given a CSO PxStat table name, get table data from PxStat API and return dataframe with all table data.
+
+        Parameters
+        ----------
+        table: str
+            The identity code of the requested table.
+
+        metadata: bool = False
+            If metadata is set to True, include available table metadata in the output dataframe.
+        """
+        url = f"https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/{table}/JSON-stat/2.0/en"
+        return self.session.get(url, **self.request_params).json()
 
     def get_table(self, table: str, metadata: bool = False) -> pd.DataFrame:
         """
