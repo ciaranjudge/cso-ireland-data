@@ -18,14 +18,14 @@ First, set up a `CSODataSession`.
 * By default, this is really simple.
 
     ```python
-    from cso_data import CSODataSession
+    from cso_ireland_data import CSODataSession
     cso = CSODataSession()
     ```
 
 * If you want to add caching, no problem! All the functionality of [the `requests-cache` package](https://github.com/requests-cache/requests-cache) is available through `cached_session_params`.
     ```python
     from datetime import timedelta
-    from cso_data import CSODataSession
+    from cso_ireland_data import CSODataSession
 
     cso = CSODataSession(
         cached_session_params={
@@ -38,7 +38,7 @@ First, set up a `CSODataSession`.
 * Stuck behind a corporate firewall that causes SSL certificate issues? Also no problem! All the functionality of [the `requests` `get()` method](https://requests.readthedocs.io/en/latest/user/quickstart/) is available through `request_params`.
 
     ```python
-    from cso_data import CSODataSession
+    from cso_ireland+data import CSODataSession
 
     # Tell requests.get() it's ok not to verify SSL certificates when getting data.
     # !!! Only do this if you're absolutely sure it's what you need !!!
